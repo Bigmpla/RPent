@@ -246,13 +246,18 @@ def build_api_model(model: str | None, base_url: str | None = None) -> "Model":
 
     def _provider_factory(provider_name: str):
         """Build the provider for ``provider_name``."""
-        if not base_url:
+        timing_path = os.environ.get("RPENT_API_TIMING_FILE")
+        if not base_url and not (timing_path and provider_name in {"openai", "openai-chat"}):
             return infer_provider(provider_name)
         provider_cls = infer_provider_class(provider_name)
         params = inspect.signature(provider_cls.__init__).parameters
         kwargs = {}
-        if "base_url" in params:
+        if base_url and "base_url" in params:
             kwargs["base_url"] = base_url
+        if timing_path and provider_name in {"openai", "openai-chat"} and "http_client" in params:
+            from rpent.planner.http_timing import timing_client
+
+            kwargs["http_client"] = timing_client(timing_path)
         return provider_cls(**kwargs)
 
     return infer_model(model, provider_factory=_provider_factory)
